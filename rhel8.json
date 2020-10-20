@@ -1,0 +1,57 @@
+{
+    "variables": {
+        "rhel_password": "SECRETPASSWORD",
+        "version": "VERSIONISO",
+        "kickstart_file": "ks-rhel8.cfg",
+        "dir_template": "/root/qcow-templates"
+    },
+
+    "provisioners": [{
+            "type": "ansible",
+            "user": "root",
+            "playbook_file": "ansible/vm-customize.yaml"
+        },
+		{
+            "type": "ansible",
+            "user": "root",
+            "playbook_file": "ansible/vm-cleanup.yaml"
+		}
+    ],
+
+    "builders": [
+        {
+            "vm_name": "rhel-{{ user `version` }}-packer.qcow2",
+            "iso_urls": [
+                "ISOURL",
+		        "/root/rhel-{{ user `version` }}-x86_64-dvd.iso"
+            ],
+            "iso_checksum": "ISOCHECKSUM",
+            "iso_target_path": "iso",
+            "output_directory": "{{ user `dir_template` }}",
+            "ssh_username": "root",
+            "ssh_password": "{{ user `rhel_password` }}",
+            "ssh_wait_timeout": "30m",
+            "http_directory": "http",
+            "boot_command": [
+                "<tab> text ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/{{ user `kickstart_file` }}<enter><wait>"
+            ],
+            "boot_wait": "2s",
+            "shutdown_command": "echo '{{ user `rhel_password` }}' | sudo -S /sbin/halt -h -p",
+            "type": "qemu",
+            "qemu_binary": "/usr/libexec/qemu-kvm",
+            "headless": false,
+            "memory": "2048",
+            "cpus": 1,
+            "disk_size": "10G",
+            "use_default_display": true
+        }
+    ],
+    "post-processors": [
+        {
+            "type": "shell-local",
+            "inline": [
+                "virt-sparsify --inplace {{ user `dir_template` }}/rhel-{{ user `version` }}-packer.qcow2"
+            ]
+        }
+    ]
+}

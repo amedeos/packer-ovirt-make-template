@@ -1,0 +1,2 @@
+[packer]
+servera.example.com ansible_ssh_user=root
