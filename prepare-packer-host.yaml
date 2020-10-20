@@ -107,3 +107,12 @@
     environment:
       - LIBGUESTFS_BACKEND: direct
       - PACKER_CACHE_DIR: /var/cache/packer_cache
+
+  - name: Build the template
+    shell: |
+      cd {{ packer_template_dir }}
+      /root/packer build rhel8.json | tee -a /var/log/packer.log
+    environment:
+      - LIBGUESTFS_BACKEND: direct
+      - PACKER_CACHE_DIR: /var/cache/packer_cache
+
