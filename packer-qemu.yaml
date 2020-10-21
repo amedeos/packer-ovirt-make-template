@@ -37,9 +37,9 @@
 
   - name: Get packer zip
     get_url:
-      url: "{{ packer_url }}"
-      dest: "/root/{{ packer_zip }}"
-      checksum: "sha256:{{ packer_checksum }}"
+      url: "{{ packer_template.url }}"
+      dest: "/root/{{ packer_template.zip }}"
+      checksum: "sha256:{{ packer_template.checksum }}"
     register: packer_download
 
   - name: Check packer bin
@@ -55,7 +55,7 @@
 
   - name: unarchive packer
     unarchive:
-      src: "/root/{{ packer_zip }}"
+      src: "/root/{{ packer_template.zip }}"
       dest: "/root"
       remote_src: True
     when: packer_download.changed or not packer_bin.stat.exists
@@ -65,27 +65,27 @@
       path: "{{ item }}"
       state: absent
     with_items:
-      - "{{ packer_output_dir }}"
-      - "{{ packer_template_dir }}"
+      - "{{ packer_template.output_dir }}"
+      - "{{ packer_template.template_dir }}"
 
   - name: Create directories
     file:
       path: "{{ item }}"
       state: directory
     with_items:
-      - "{{ packer_template_dir }}"
-      - "{{ packer_template_dir }}/ansible"
-      - "{{ packer_template_dir }}/http"
+      - "{{ packer_template.template_dir }}"
+      - "{{ packer_template.template_dir }}/ansible"
+      - "{{ packer_template.template_dir }}/http"
 
   - name: Copy templates
     copy:
       src: "{{ item.src }}"
       dest: "{{ item.dest }}"
     with_items:
-      - { src: "rhel8.json", dest: "{{ packer_template_dir }}/rhel8.json"}
-      - { src: "ansible/vm-cleanup.yaml", dest: "{{ packer_template_dir }}/ansible/vm-cleanup.yaml"}
-      - { src: "ansible/vm-customize.yaml", dest: "{{ packer_template_dir }}/ansible/vm-customize.yaml"}
-      - { src: "http/ks-rhel8.cfg", dest: "{{ packer_template_dir }}/http/ks-rhel8.cfg"}
+      - { src: "rhel8.json", dest: "{{ packer_template.template_dir }}/rhel8.json"}
+      - { src: "ansible/vm-cleanup.yaml", dest: "{{ packer_template.template_dir }}/ansible/vm-cleanup.yaml"}
+      - { src: "ansible/vm-customize.yaml", dest: "{{ packer_template.template_dir }}/ansible/vm-customize.yaml"}
+      - { src: "http/ks-rhel8.cfg", dest: "{{ packer_template.template_dir }}/http/ks-rhel8.cfg"}
 
   - name: Replace value in templates
     replace:
@@ -94,16 +94,16 @@
       replace: "{{ item.replace }}"
     no_log: True
     with_items:
-      - { path: "{{ packer_template_dir }}/rhel8.json", regexp: "SECRETPASSWORD", replace: "{{ vm_password }}" }
-      - { path: "{{ packer_template_dir }}/http/ks-rhel8.cfg", regexp: "SECRETPASSWORD", replace: "{{ vm_password }}" }
-      - { path: "{{ packer_template_dir }}/rhel8.json", regexp: "VERSIONISO", replace: "{{ packer_version_iso }}" }
-      - { path: "{{ packer_template_dir }}/rhel8.json", regexp: "ISOCHECKSUM", replace: "sha256:{{ packer_iso_checksum }}" }
-      - { path: "{{ packer_template_dir }}/rhel8.json", regexp: "ISOURL", replace: "{{ packer_iso }}" }
-      - { path: "{{ packer_template_dir }}/rhel8.json", regexp: "OUTPUTVMNAME", replace: "{{ packer_output_vm_name }}" }
+      - { path: "{{ packer_template.template_dir }}/rhel8.json", regexp: "SECRETPASSWORD", replace: "{{ vm_password }}" }
+      - { path: "{{ packer_template.template_dir }}/http/ks-rhel8.cfg", regexp: "SECRETPASSWORD", replace: "{{ vm_password }}" }
+      - { path: "{{ packer_template.template_dir }}/rhel8.json", regexp: "VERSIONISO", replace: "{{ packer_template.version_iso }}" }
+      - { path: "{{ packer_template.template_dir }}/rhel8.json", regexp: "ISOCHECKSUM", replace: "sha256:{{ packer_template.iso_checksum }}" }
+      - { path: "{{ packer_template.template_dir }}/rhel8.json", regexp: "ISOURL", replace: "{{ packer_template.iso }}" }
+      - { path: "{{ packer_template.template_dir }}/rhel8.json", regexp: "OUTPUTVMNAME", replace: "{{ packer_template.output_vm_name }}" }
 
   - name: Validate the template
     shell: |
-      cd {{ packer_template_dir }}
+      cd {{ packer_template.template_dir }}
       /root/packer validate rhel8.json
     environment:
       - LIBGUESTFS_BACKEND: direct
@@ -111,7 +111,7 @@
 
   - name: Build the template
     shell: |
-      cd {{ packer_template_dir }}
+      cd {{ packer_template.template_dir }}
       /root/packer build rhel8.json | tee -a /var/log/packer.log
     environment:
       - LIBGUESTFS_BACKEND: direct

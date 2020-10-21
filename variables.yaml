@@ -1,14 +1,15 @@
 sat_cachetimeout: 6000
 sat_url_newhost: "{{ sat_server_url }}/api/hosts"
-packer_output_dir: "/root/qcow-templates"
-packer_template_dir: "/root/packer-templates"
-packer_zip: "packer_1.6.4_linux_amd64.zip"
-packer_url: "https://releases.hashicorp.com/packer/1.6.4/{{ packer_zip }}"
-packer_checksum: "a20ec68e9eb6e1d6016481003f705babbecc28e234f8434f3a35f675cb200ea8"
-packer_version_iso: "8.2"
-packer_iso: "/root/rhel-8.2-x86_64-dvd.iso"
-packer_iso_checksum: "7fdfed9c7cced4e526a362e64ed06bcdc6ce0394a98625a40e7d05db29bf7b86"
-packer_output_vm_name: "rhel-{{ packer_version_iso }}-packer.qcow2"
+packer_template:
+  output_dir: "/root/qcow-templates"
+  template_dir: "/root/packer-templates"
+  zip: "packer_1.6.4_linux_amd64.zip"
+  url: "https://releases.hashicorp.com/packer/1.6.4/packer_1.6.4_linux_amd64.zip"
+  checksum: "a20ec68e9eb6e1d6016481003f705babbecc28e234f8434f3a35f675cb200ea8"
+  version_iso: "8.2"
+  iso: "/root/rhel-8.2-x86_64-dvd.iso"
+  iso_checksum: "7fdfed9c7cced4e526a362e64ed06bcdc6ce0394a98625a40e7d05db29bf7b86"
+  output_vm_name: "rhel-8.2-packer.qcow2"
 template:
   name: templaterh8
   organization_name: "Lab SPA"
