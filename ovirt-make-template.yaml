@@ -1,0 +1,178 @@
+---
+- name: 'Get generated qcow2 image'
+  hosts: packer
+  become: False
+  vars_files:
+    - variables-vault.yaml
+    - variables.yaml
+
+  tasks:
+  - name: Get sha256 of the images - packer
+    stat:
+      path: "{{ packer_template.output_dir }}/{{ packer_template.output_vm_name }}"
+      checksum_algorithm: sha256
+      get_checksum: True
+    register: qcow2_stat_packer
+
+  - name: Fetch qcow2 images
+    fetch:
+      src: "{{ item.src }}"
+      dest: "{{ item.dest }}"
+      flat: True
+    with_items:
+      - { src: "{{  packer_template.output_dir }}/{{ packer_template.output_vm_name }}", dest: "{{ packer_template.output_vm_name }}" }
+
+  - name: Check sha256 of the images - local
+    local_action:
+      module: stat
+        path={{ packer_template.output_vm_name }}
+        checksum_algorithm=sha256
+        get_checksum=True
+    register: qcow2_stat_local
+
+  - name: Fail if sha256 are not equals
+    fail: msg="SHA256 checksum fails"
+    when: not qcow2_stat_packer.stat.checksum == qcow2_stat_local.stat.checksum
+
+- name: 'Create template on engine'
+  hosts: engine
+  become: False
+  vars_files:
+    - variables-vault.yaml
+    - variables.yaml
+
+  tasks:
+  - name: Check sha256 of the images - local
+    local_action:
+      module: stat
+        path={{ packer_template.output_vm_name }}
+        checksum_algorithm=sha256
+        get_checksum=True
+    register: qcow2_stat_local
+
+
+  - name: Copy qcow2 on engine
+    copy:
+      src: "{{ packer_template.output_vm_name }}"
+      dest: "/root/{{ packer_template.output_vm_name }}"
+      owner: root
+      group: root
+      mode: '0644'
+
+  - name: Get sha256 of the images - engine
+    stat:
+      path: "/root/{{ packer_template.output_vm_name }}"
+      checksum_algorithm: sha256
+      get_checksum: True
+    register: qcow2_stat_engine
+
+  - name: Fail if sha256 are not equals
+    fail: msg="SHA256 checksum fails"
+    when: not qcow2_stat_local.stat.checksum == qcow2_stat_engine.stat.checksum
+
+  - name: Check file type
+    command: "/usr/bin/file /root/{{ packer_template.output_vm_name }}"
+    changed_when: false
+    register: filetype
+
+  - name: Fail if image is not qcow
+    fail:
+      msg: "The downloaded file is not valid QCOW file."
+    when: '"QCOW" not in filetype.stdout'
+
+  - name: Calculate image size in GiB
+    set_fact:
+      qcow2_size: "{{ (filetype.stdout_lines[0].split()[5] | int / 2**30) | round(0, 'ceil') | int }}GiB"
+
+  - name: Create auth
+    ovirt_auth:
+      url: "https://{{ engine_n }}/ovirt-engine/api"
+      username: "{{ engine_user }}"
+      password: "{{ engine_password }}"
+      insecure: True
+
+  - name: Check if template already exists
+    ovirt_template_info:
+      auth: "{{ ovirt_auth }}"
+      pattern: "name={{ engine_template.templatename }}-packer and cluster={{ engine_template.cluster }}"
+    register: template_info
+
+  - name: Ensure vm is not present
+    ovirt_vm:
+      name: "{{ engine_template.name }}"
+      state: absent
+      cluster: "{{ engine_template.cluster }}"
+      auth: "{{ ovirt_auth }}"
+
+  - name: Create vm
+    ovirt_vm:
+      name: "{{ engine_template.name }}"
+      state: present
+      ballooning_enabled: "{{ engine_template.ballooning_enabled }}"
+      memory: "{{ engine_template.memory }}"
+      cpu_cores: "{{ engine_template.cpu_cores }}"
+      cluster: "{{ engine_template.cluster }}"
+      boot_devices:
+        - hd
+      graphical_console:
+        protocol:
+          - spice
+          - vnc
+      operating_system: rhel_8x64
+      auth: "{{ ovirt_auth }}"
+
+  - name: Create new suffix for disk
+    shell: date +%Y%m%d%H%M%S
+    register: date_disk
+
+  - name: Deploy the qcow image to oVirt engine
+    ovirt_disk:
+      auth: "{{ ovirt_auth }}"
+      vm_name: "{{ engine_template.name }}"
+      name: "{{ engine_template.templatename }}_packer_{{ date_disk.stdout }}"
+      size: "{{ qcow2_size }}"
+      interface: "{{ engine_template.disk_interface }}"
+      format: "{{ engine_template.disk_format }}"
+      image_path: "/root/{{ packer_template.output_vm_name }}"
+      storage_domain: "{{ engine_template.storage_domain }}"
+      sparse: "{{ engine_template.disk_sparse }}"
+      bootable: "{{ engine_template.disk_bootable }}"
+      force: "{{ template_info.ovirt_templates | length == 0 }}"
+    register: ovirt_disk
+
+  #- name: Wait until the qcow image is unlocked by the oVirt engine
+  #  ovirt_disk_info:
+  #    auth: "{{ ovirt_auth }}"
+  #    pattern: "id={{ ovirt_disk.id }}"
+  #  register: disk_info
+  #  until: ((ovirt_disk is defined) and (ovirt_disk.disk.status != "locked")) or ((disk_info is defined) and (disk_info.ovirt_disks[0].status != "locked"))
+  #  retries: 20
+  #  delay: 3
+  #  when: template_info.ovirt_templates | length == 0
+
+  - name: Create nic interface
+    ovirt_nic:
+      name: "{{ engine_template.nic_name }}"
+      vm: "{{ engine_template.name }}"
+      interface: "{{ engine_template.nic_interface }}"
+      state: present
+      mac_address: "{{ engine_template.nic_mac_address }}"
+      network: "{{ engine_template.nic_network }}"
+      auth: "{{ ovirt_auth }}"
+
+  - name: Make Template
+    ovirt_template:
+      auth: "{{ ovirt_auth }}"
+      cluster: "{{ engine_template.cluster }}"
+      name: "{{ engine_template.templatename }}-packer"
+      vm: "{{ engine_template.name }}"
+      cpu_profile: Default
+      description: Template RHEL8 with packer
+
+  - name: Ensure vm is not present
+    ovirt_vm:
+      name: "{{ engine_template.name }}"
+      state: absent
+      cluster: "{{ engine_template.cluster }}"
+      auth: "{{ ovirt_auth }}"
+
