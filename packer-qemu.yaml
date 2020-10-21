@@ -99,6 +99,7 @@
       - { path: "{{ packer_template_dir }}/rhel8.json", regexp: "VERSIONISO", replace: "{{ packer_version_iso }}" }
       - { path: "{{ packer_template_dir }}/rhel8.json", regexp: "ISOCHECKSUM", replace: "sha256:{{ packer_iso_checksum }}" }
       - { path: "{{ packer_template_dir }}/rhel8.json", regexp: "ISOURL", replace: "{{ packer_iso }}" }
+      - { path: "{{ packer_template_dir }}/rhel8.json", regexp: "OUTPUTVMNAME", replace: "{{ packer_output_vm_name }}" }
 
   - name: Validate the template
     shell: |

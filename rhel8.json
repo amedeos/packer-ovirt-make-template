@@ -2,6 +2,7 @@
     "variables": {
         "rhel_password": "SECRETPASSWORD",
         "version": "VERSIONISO",
+        "output_vm_name": "OUTPUTVMNAME",
         "kickstart_file": "ks-rhel8.cfg",
         "dir_template": "/root/qcow-templates"
     },
@@ -20,7 +21,7 @@
 
     "builders": [
         {
-            "vm_name": "rhel-{{ user `version` }}-packer.qcow2",
+            "vm_name": "{{ user `output_vm_name` }}",
             "iso_urls": [
                 "ISOURL",
 		        "/root/rhel-{{ user `version` }}-x86_64-dvd.iso"
@@ -50,7 +51,7 @@
         {
             "type": "shell-local",
             "inline": [
-                "virt-sparsify --inplace {{ user `dir_template` }}/rhel-{{ user `version` }}-packer.qcow2"
+                "virt-sparsify --inplace {{ user `dir_template` }}/{{ user `output_vm_name` }}"
             ]
         }
     ]
